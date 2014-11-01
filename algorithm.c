@@ -29,6 +29,7 @@
 #include "algorithm/bitblock.h"
 #include "algorithm/x14.h"
 #include "algorithm/fresh.h"
+#include "algorithm/Lyra2RE.h"
 
 #include "compat.h"
 
@@ -48,7 +49,8 @@ const char *algorithm_type_str[] = {
   "Twecoin",
   "Fugue256",
   "NIST",
-  "Fresh"
+  "Fresh",
+  "Lyra2RE"
 };
 
 void sha256(const unsigned char *message, unsigned int len, unsigned char *digest)
@@ -631,6 +633,8 @@ static algorithm_settings_t algos[] = {
   { "talkcoin-mod", ALGO_NIST, 1, 1, 1, 0, 0, 0xFF, 0xFFFFULL, 0x0000ffffUL, 4,  8 * 16 * 4194304, 0, talkcoin_regenhash, queue_talkcoin_mod_kernel, gen_hash, append_x11_compiler_options},
 
   { "fresh", ALGO_FRESH, 1, 256, 256, 0, 0, 0xFF, 0xFFFFULL, 0x0000ffffUL, 4, 4 * 16 * 4194304, 0, fresh_regenhash, queue_fresh_kernel, gen_hash, NULL},
+  
+  { "Lyra2RE", ALGO_LYRA2RE, 1, 1, 1, 0, 0, 0xFF, 0xFFFFFFULL, 0x0000ffffUL, 0, 0, CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE, lyra2re_regenhash, queue_sph_kernel, gen_hash, append_x11_compiler_options},
 
   // kernels starting from this will have difficulty calculated by using fuguecoin algorithm
 #define A_FUGUE(a, b) \
