@@ -34,7 +34,23 @@ void * memset(void * ptr, int value, size_t num)
 	
 	return ret;
 }
- 
+
+
+void * memcpy(void * dst, const void * src, size_t count)
+{
+        void * ret = dst;
+
+        while(count--) 
+		{
+            *(char *)dst = *(char *)src;
+            dst = (char *)dst + 1;
+            src = (char *)src + 1;
+        }
+
+        return ret;
+}
+
+
  /*Blake2b IV Array*/
 static const uint64_t blake2b_IV[8] =
 {
@@ -168,21 +184,21 @@ inline void squeeze(uint64_t *state, uchar *out, unsigned int len) {
     int i;
     //Squeezes full blocks
     for (i = 0; i < fullBlocks; i++) {
-	//memcpy(ptr, state, BLOCK_LEN_BYTES);
-	for(int i2 = 0; i2 < BLOCK_LEN_BYTES; i2++)
+	memcpy(ptr, state, BLOCK_LEN_BYTES);
+	/*for(int i2 = 0; i2 < BLOCK_LEN_BYTES; i2++)
 	{
 		ptr[i2] = state[i2];
-	}
+	}*/
 	blake2bLyra(state);
 	ptr += BLOCK_LEN_BYTES;
     }
 
     //Squeezes remaining bytes
-    //memcpy(ptr, state, (len % BLOCK_LEN_BYTES));
-	for(i = 0; i < (len % BLOCK_LEN_BYTES); i++)
+    memcpy(ptr, state, (len % BLOCK_LEN_BYTES));
+	/*for(i = 0; i < (len % BLOCK_LEN_BYTES); i++)
 	{
 		ptr[i] = state[i];
-	}
+	}*/
 }
 
 /**
@@ -470,22 +486,6 @@ inline void reducedDuplexRow(uint64_t *state, uint64_t *rowIn, uint64_t *rowInOu
     }
 }
 
-void * memcpy(void * dst, const void * src, size_t count)
-{
-        void * ret = dst;
-
-        while(count--) 
-		{
-            *(char *)dst = *(char *)src;
-            dst = (char *)dst + 1;
-            src = (char *)src + 1;
-        }
-
-        return ret;
-}
-
-
-
 /**
  * Executes Lyra2 based on the G function from Blake2b. This version supports salts and passwords
  * whose combined length is smaller than the size of the memory matrix, (i.e., (nRows x nCols x b) bits,
@@ -686,8 +686,8 @@ void LYRA2(uchar *K, const uchar *pwd, const uchar *salt, unsigned int timeCost)
     	do {
   	    //Selects a pseudorandom index row*
   	    //------------------------------------------------------------------------------------------
-  	    //rowa = ((unsigned int)state[0]) & (nRows-1);	//(USE THIS IF nRows IS A POWER OF 2)
-  	    rowa = ((unsigned int) (state[0])) % nRows; //(USE THIS FOR THE "GENERIC" CASE)
+  	    rowa = ((unsigned int)state[0]) & (nRows-1);	//(USE THIS IF nRows IS A POWER OF 2)
+  	    //rowa = ((unsigned int) (state[0])) % nRows; //(USE THIS FOR THE "GENERIC" CASE)
   	    //------------------------------------------------------------------------------------------
 
   	    //Performs a reduced-round duplexing operation over M[row*] XOR M[prev], updating both M[row*] and M[row]
@@ -698,8 +698,8 @@ void LYRA2(uchar *K, const uchar *pwd, const uchar *salt, unsigned int timeCost)
 
   	    //updates row: goes to the next row to be computed
   	    //------------------------------------------------------------------------------------------
-  	    //row = (row + step) & (nRows-1);	//(USE THIS IF nRows IS A POWER OF 2)
-  	    row = (row + step) % nRows; //(USE THIS FOR THE "GENERIC" CASE)
+  	    row = (row + step) & (nRows-1);	//(USE THIS IF nRows IS A POWER OF 2)
+  	    //row = (row + step) % nRows; //(USE THIS FOR THE "GENERIC" CASE)
   	    //------------------------------------------------------------------------------------------
 
       } while (row != 0);
