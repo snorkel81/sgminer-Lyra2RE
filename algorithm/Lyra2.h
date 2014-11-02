@@ -36,7 +36,7 @@ typedef unsigned char byte ;
 #endif
 
 #ifndef N_COLS
-        #define N_COLS 64                                //Number of columns in the memory matrix: fixed to 64 by default
+        #define N_COLS 8                               //Number of columns in the memory matrix: fixed to 64 by default
 #endif
 
 #define ROW_LEN_INT64 (BLOCK_LEN_INT64 * N_COLS) //Total length of a row: N_COLS blocks
