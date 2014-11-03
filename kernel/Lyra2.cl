@@ -1,57 +1,49 @@
-/**
- * Implementation of the Lyra2 Password Hashing Scheme (PHS).
- *
- * Author: The Lyra PHC team (http://www.lyra-kdf.net/) -- 2014.
- *
- * This software is hereby placed in the public domain.
- *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHORS ''AS IS'' AND ANY EXPRESS
- * OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED. IN NO EVENT SHALL THE AUTHORS OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
- * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
- * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
- * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
- * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
- 
 typedef unsigned char byte;
-typedef long int64_t;
-typedef unsigned long uint64_t;
- 
-void * memset(void * ptr, int value, size_t num)
+typedef unsigned long int uint64_t;
+typedef long int int64_t;
+
+//Block length required so Blake2's Initialization Vector (IV) is not overwritten (THIS SHOULD NOT BE MODIFIED)
+#define BLOCK_LEN_BLAKE2_SAFE_INT64 8                                   //512 bits (=64 bytes, =8 uint64_t)
+#define BLOCK_LEN_BLAKE2_SAFE_BYTES (BLOCK_LEN_BLAKE2_SAFE_INT64 * 8)   //same as above, in bytes
+
+
+#ifdef BLOCK_LEN_BITS
+        #define BLOCK_LEN_INT64 (BLOCK_LEN_BITS/64)      //Block length: 768 bits (=96 bytes, =12 uint64_t)
+        #define BLOCK_LEN_BYTES (BLOCK_LEN_BITS/8)       //Block length, in bytes
+#else   //default block lenght: 768 bits
+        #define BLOCK_LEN_INT64 12                       //Block length: 768 bits (=96 bytes, =12 uint64_t)
+        #define BLOCK_LEN_BYTES (BLOCK_LEN_INT64 * 8)    //Block length, in bytes
+#endif
+
+#ifndef N_COLS
+        #define N_COLS 8                                //Number of columns in the memory matrix: fixed to 64 by default
+#endif
+
+#define ROW_LEN_INT64 (BLOCK_LEN_INT64 * N_COLS) //Total length of a row: N_COLS blocks
+#define ROW_LEN_BYTES (ROW_LEN_INT64 * 8)        //Number of bytes per row
+
+void clmemset(unsigned char *dst, const unsigned char value, const unsigned int len)
 {
-	void * ret = ptr;
-	
-	while(num--)
-	{
-		*(char *)ptr = value;
-        ptr = (char *)ptr + 1;
-	}
-	
-	return ret;
+    int i;
+    for(i = 0; i < len; i++)
+    {
+        *dst = value;
+        dst++;
+    }
 }
 
-
-void * memcpy(void * dst, const void * src, size_t count)
+void clmemcpy(unsigned char *dst, const unsigned char *src, const unsigned int len)
 {
-        void * ret = dst;
-
-        while(count--) 
-		{
-            *(char *)dst = *(char *)src;
-            dst = (char *)dst + 1;
-            src = (char *)src + 1;
-        }
-
-        return ret;
+    int i;
+    for(i = 0; i < len; i++)
+    {
+        *dst = *src;
+        dst++;
+        src++;
+    }
 }
 
-
- /*Blake2b IV Array*/
+/*Blake2b IV Array*/
 static const uint64_t blake2b_IV[8] =
 {
   0x6a09e667f3bcc908ULL, 0xbb67ae8584caa73bULL,
@@ -91,46 +83,20 @@ static inline uint64_t rotr64( const uint64_t w, const unsigned c ){
     G(r,7,v[ 3],v[ 4],v[ 9],v[14]);
 
 
-
-//Block length required so Blake2's Initialization Vector (IV) is not overwritten (THIS SHOULD NOT BE MODIFIED)
-#define BLOCK_LEN_BLAKE2_SAFE_INT64 8                                   //512 bits (=64 bytes, =8 uint64_t)
-#define BLOCK_LEN_BLAKE2_SAFE_BYTES (BLOCK_LEN_BLAKE2_SAFE_INT64 * 8)   //same as above, in bytes
-
-
-#ifdef BLOCK_LEN_BITS
-        #define BLOCK_LEN_INT64 (BLOCK_LEN_BITS/64)      //Block length: 768 bits (=96 bytes, =12 uint64_t)
-        #define BLOCK_LEN_BYTES (BLOCK_LEN_BITS/8)       //Block length, in bytes
-#else   //default block lenght: 768 bits
-        #define BLOCK_LEN_INT64 12                       //Block length: 768 bits (=96 bytes, =12 uint64_t)
-        #define BLOCK_LEN_BYTES (BLOCK_LEN_INT64 * 8)    //Block length, in bytes
-#endif
-
-#ifndef N_COLS
-        #define N_COLS 8                              //Number of columns in the memory matrix: fixed to 64 by default
-#endif
-
-#define ROW_LEN_INT64 (BLOCK_LEN_INT64 * N_COLS) //Total length of a row: N_COLS blocks
-#define ROW_LEN_BYTES (ROW_LEN_INT64 * 8)        //Number of bytes per row
- 
- /**
- * Initializes the Sponge State. The first 512 bits are set to zeros and the remainder 
+/**
+ * Initializes the Sponge State. The first 512 bits are set to zeros and the remainder
  * receive Blake2b's IV as per Blake2b's specification. <b>Note:</b> Even though sponges
  * typically have their internal state initialized with zeros, Blake2b's G function
- * has a fixed point: if the internal state and message are both filled with zeros. the 
- * resulting permutation will always be a block filled with zeros; this happens because 
- * Blake2b does not use the constants originally employed in Blake2 inside its G function, 
+ * has a fixed point: if the internal state and message are both filled with zeros. the
+ * resulting permutation will always be a block filled with zeros; this happens because
+ * Blake2b does not use the constants originally employed in Blake2 inside its G function,
  * relying on the IV for avoiding possible fixed points.
- * 
+ *
  * @param state         The 1024-bit array to be initialized
  */
 inline void initState(uint64_t state[/*16*/]) {
     //First 512 bis are zeros
-    memset(state, 0, 64);
-	/*for(int i = 0; i < 64; i++)
-	{
-		state[i] = 0;
-	}*/
-	
+    clmemset((unsigned char*)state, 0, 64);
     //Remainder BLOCK_LEN_BLAKE2_SAFE_BYTES are reserved to the IV
     state[8] = blake2b_IV[0];
     state[9] = blake2b_IV[1];
@@ -144,7 +110,7 @@ inline void initState(uint64_t state[/*16*/]) {
 
 /**
  * Execute Blake2b's G function, with all 12 rounds.
- * 
+ *
  * @param v     A 1024-bit (16 uint64_t) array to be processed by Blake2b's G function
  */
 inline static void blake2bLyra(uint64_t *v) {
@@ -171,41 +137,33 @@ inline static void reducedBlake2bLyra(uint64_t *v) {
 }
 
 /**
- * Performs a squeeze operation, using Blake2b's G function as the 
+ * Performs a squeeze operation, using Blake2b's G function as the
  * internal permutation
- * 
- * @param state      The current state of the sponge 
+ *
+ * @param state      The current state of the sponge
  * @param out        Array that will receive the data squeezed
  * @param len        The number of bytes to be squeezed into the "out" array
  */
-inline void squeeze(uint64_t *state, uchar *out, unsigned int len) {
+inline void squeeze(uint64_t *state, byte *out, unsigned int len) {
     int fullBlocks = len / BLOCK_LEN_BYTES;
-    uchar *ptr = out;
+    byte *ptr = out;
     int i;
     //Squeezes full blocks
     for (i = 0; i < fullBlocks; i++) {
-	memcpy(ptr, state, BLOCK_LEN_BYTES);
-	/*for(int i2 = 0; i2 < BLOCK_LEN_BYTES; i2++)
-	{
-		ptr[i2] = state[i2];
-	}*/
+	clmemcpy(ptr, (const unsigned char*)state, BLOCK_LEN_BYTES);
 	blake2bLyra(state);
 	ptr += BLOCK_LEN_BYTES;
     }
 
     //Squeezes remaining bytes
-    memcpy(ptr, state, (len % BLOCK_LEN_BYTES));
-	/*for(i = 0; i < (len % BLOCK_LEN_BYTES); i++)
-	{
-		ptr[i] = state[i];
-	}*/
+    clmemcpy(ptr, (const unsigned char*)state, (len % BLOCK_LEN_BYTES));
 }
 
 /**
  * Performs an absorb operation for a single block (BLOCK_LEN_INT64 words
  * of type uint64_t), using Blake2b's G function as the internal permutation
- * 
- * @param state The current state of the sponge 
+ *
+ * @param state The current state of the sponge
  * @param in    The block to be absorbed (BLOCK_LEN_INT64 words)
  */
 inline void absorbBlock(uint64_t *state, const uint64_t *in) {
@@ -228,10 +186,10 @@ inline void absorbBlock(uint64_t *state, const uint64_t *in) {
 }
 
 /**
- * Performs an absorb operation for a single block (BLOCK_LEN_BLAKE2_SAFE_INT64 
+ * Performs an absorb operation for a single block (BLOCK_LEN_BLAKE2_SAFE_INT64
  * words of type uint64_t), using Blake2b's G function as the internal permutation
- * 
- * @param state The current state of the sponge 
+ *
+ * @param state The current state of the sponge
  * @param in    The block to be absorbed (BLOCK_LEN_BLAKE2_SAFE_INT64 words)
  */
 inline void absorbBlockBlake2Safe(uint64_t *state, const uint64_t *in) {
@@ -249,18 +207,18 @@ inline void absorbBlockBlake2Safe(uint64_t *state, const uint64_t *in) {
     blake2bLyra(state);
 }
 
-/** 
- * Performs a reduced squeeze operation for a single row, from the highest to 
- * the lowest index, using the reduced-round Blake2b's G function as the 
+/**
+ * Performs a reduced squeeze operation for a single row, from the highest to
+ * the lowest index, using the reduced-round Blake2b's G function as the
  * internal permutation
- * 
- * @param state     The current state of the sponge 
+ *
+ * @param state     The current state of the sponge
  * @param rowOut    Row to receive the data squeezed
  */
 inline void reducedSqueezeRow0(uint64_t* state, uint64_t* rowOut) {
     uint64_t* ptrWord = rowOut + (N_COLS-1)*BLOCK_LEN_INT64; //In Lyra2: pointer to M[0][C-1]
     int i;
-    //M[row][C-1-col] = H.reduced_squeeze()    
+    //M[row][C-1-col] = H.reduced_squeeze()
     for (i = 0; i < N_COLS; i++) {
 	ptrWord[0] = state[0];
 	ptrWord[1] = state[1];
@@ -283,12 +241,12 @@ inline void reducedSqueezeRow0(uint64_t* state, uint64_t* rowOut) {
     }
 }
 
-/** 
- * Performs a reduced duplex operation for a single row, from the highest to 
- * the lowest index, using the reduced-round Blake2b's G function as the 
+/**
+ * Performs a reduced duplex operation for a single row, from the highest to
+ * the lowest index, using the reduced-round Blake2b's G function as the
  * internal permutation
- * 
- * @param state		The current state of the sponge 
+ *
+ * @param state		The current state of the sponge
  * @param rowIn		Row to feed the sponge
  * @param rowOut	Row to receive the sponge's output
  */
@@ -329,8 +287,8 @@ inline void reducedDuplexRow1(uint64_t *state, uint64_t *rowIn, uint64_t *rowOut
 	ptrWordOut[9] = ptrWordIn[9]  ^ state[9];
 	ptrWordOut[10] = ptrWordIn[10] ^ state[10];
 	ptrWordOut[11] = ptrWordIn[11] ^ state[11];
-	
-	
+
+
 	//Input: next column (i.e., next block in sequence)
 	ptrWordIn += BLOCK_LEN_INT64;
 	//Output: goes to previous column
@@ -339,14 +297,14 @@ inline void reducedDuplexRow1(uint64_t *state, uint64_t *rowIn, uint64_t *rowOut
 }
 
 /**
- * Performs a duplexing operation over "M[rowInOut][col] [+] M[rowIn][col]" (i.e., 
+ * Performs a duplexing operation over "M[rowInOut][col] [+] M[rowIn][col]" (i.e.,
  * the wordwise addition of two columns, ignoring carries between words). The
- * output of this operation, "rand", is then used to make 
- * "M[rowOut][(N_COLS-1)-col] = M[rowIn][col] XOR rand" and 
- * "M[rowInOut][col] =  M[rowInOut][col] XOR rotW(rand)", where rotW is a 64-bit 
+ * output of this operation, "rand", is then used to make
+ * "M[rowOut][(N_COLS-1)-col] = M[rowIn][col] XOR rand" and
+ * "M[rowInOut][col] =  M[rowInOut][col] XOR rotW(rand)", where rotW is a 64-bit
  * rotation to the left and N_COLS is a system parameter.
  *
- * @param state          The current state of the sponge 
+ * @param state          The current state of the sponge
  * @param rowIn          Row used only as input
  * @param rowInOut       Row used as input and to receive output after rotation
  * @param rowOut         Row receiving the output
@@ -389,7 +347,7 @@ inline void reducedDuplexRowSetup(uint64_t *state, uint64_t *rowIn, uint64_t *ro
 	ptrWordOut[9] = ptrWordIn[9]  ^ state[9];
 	ptrWordOut[10] = ptrWordIn[10] ^ state[10];
 	ptrWordOut[11] = ptrWordIn[11] ^ state[11];
-	
+
 	//M[row*][col] = M[row*][col] XOR rotW(rand)
 	ptrWordInOut[0]  ^= state[11];
 	ptrWordInOut[1]  ^= state[0];
@@ -413,14 +371,14 @@ inline void reducedDuplexRowSetup(uint64_t *state, uint64_t *rowIn, uint64_t *ro
 }
 
 /**
- * Performs a duplexing operation over "M[rowInOut][col] [+] M[rowIn][col]" (i.e., 
+ * Performs a duplexing operation over "M[rowInOut][col] [+] M[rowIn][col]" (i.e.,
  * the wordwise addition of two columns, ignoring carries between words). The
- * output of this operation, "rand", is then used to make 
- * "M[rowOut][col] = M[rowOut][col] XOR rand" and 
- * "M[rowInOut][col] =  M[rowInOut][col] XOR rotW(rand)", where rotW is a 64-bit 
+ * output of this operation, "rand", is then used to make
+ * "M[rowOut][col] = M[rowOut][col] XOR rand" and
+ * "M[rowInOut][col] =  M[rowInOut][col] XOR rotW(rand)", where rotW is a 64-bit
  * rotation to the left.
  *
- * @param state          The current state of the sponge 
+ * @param state          The current state of the sponge
  * @param rowIn          Row used only as input
  * @param rowInOut       Row used as input and to receive output after rotation
  * @param rowOut         Row receiving the output
@@ -505,14 +463,7 @@ inline void reducedDuplexRow(uint64_t *state, uint64_t *rowIn, uint64_t *rowInOu
  *
  * @return 0 if the key is generated correctly; -1 if there is an error (usually due to lack of memory for allocation)
  */
- 
-#define numRows 8
-#define numCols 8
-#define keyLength 64
-#define passwordLength 64
-#define saltLength 64
-
-void LYRA2(uchar *K, const uchar *pwd, const uchar *salt, unsigned int timeCost) {
+void LYRA2(void *K, unsigned int kLen, const void *pwd, unsigned int pwdlen, const void *salt, unsigned int saltlen, unsigned int timeCost) {
 
     //============================= Basic variables ============================//
     int64_t row = 2; //index of row to be processed
@@ -524,25 +475,20 @@ void LYRA2(uchar *K, const uchar *pwd, const uchar *salt, unsigned int timeCost)
     int64_t gap = 1; //Modifier to the step, assuming the values 1 or -1
     int64_t i; //auxiliary iteration counter
     //==========================================================================/
-	
-	const unsigned int nRows = numRows;
-	const unsigned int nCols = numCols;
-	const unsigned int kLen = keyLength;
-	const unsigned int pwdlen = passwordLength;
-	const unsigned int saltlen = saltLength;
-		
-	uint64_t wholeMatrix[(numRows * ROW_LEN_BYTES) / 8];
-	uint64_t memMatrix[numRows];
-	uint64_t state[16];
 
     //========== Initializing the Memory Matrix and pointers to it =============//
     //Tries to allocate enough space for the whole memory matrix
-    //i = (int64_t) ((int64_t) nRows * (int64_t) ROW_LEN_BYTES);
-    //uint64_t *wholeMatrix = malloc(i);
+	
+	const unsigned int nCols = 8;
+	const unsigned int nRows = 8;
+
+    uint64_t wholeMatrixarr[(nRows * ROW_LEN_BYTES) / 8];
+    uint64_t *wholeMatrix = wholeMatrixarr;
 
     //Allocates pointers to each row of the matrix
-    //uint64_t **memMatrix = malloc(nRows * sizeof (uint64_t*));
-	
+    uint64_t *memMatrixarr[nRows];
+    uint64_t **memMatrix = memMatrixarr;
+
     //Places the pointers in the correct positions
     uint64_t *ptrWord = wholeMatrix;
     for (i = 0; i < nRows; i++) {
@@ -557,79 +503,43 @@ void LYRA2(uchar *K, const uchar *pwd, const uchar *salt, unsigned int timeCost)
 
     //First, we clean enough blocks for the password, salt, basil and padding
     uint64_t nBlocksInput = ((saltlen + pwdlen + 6 * sizeof (int)) / BLOCK_LEN_BLAKE2_SAFE_BYTES) + 1;
-    uchar *ptrByte = (uchar*) wholeMatrix;
-	
-	memset(ptrByte, 0, nBlocksInput * BLOCK_LEN_BLAKE2_SAFE_BYTES);
-	/*for(i = 0; i < nBlocksInput * BLOCK_LEN_BLAKE2_SAFE_BYTES; i++)
-	{
-		ptrByte[i] = 0;
-	}*/
+    byte *ptrByte = (byte*) wholeMatrix;
+    clmemset(ptrByte, 0x0, nBlocksInput * BLOCK_LEN_BLAKE2_SAFE_BYTES);
 
     //Prepends the password
-    memcpy(ptrByte, pwd, pwdlen);
-	/*for(i = 0; i < pwdlen; i++)
-	{
-		ptrByte[i] = pwd[i];
-	}*/
-	//ptrByte = as_uchar(pwd);
+    clmemcpy(ptrByte, pwd, pwdlen);
     ptrByte += pwdlen;
 
     //Concatenates the salt
-    memcpy(ptrByte, salt, saltlen);
-	/*for(i = 0; i < saltlen; i++)
-	{
-		ptrByte[i] = salt[i];
-	}*/
+    clmemcpy(ptrByte, salt, saltlen);
     ptrByte += saltlen;
 
     //Concatenates the basil: every integer passed as parameter, in the order they are provided by the interface
-    memcpy(ptrByte, &kLen, sizeof (int));
-	/*for(i = 0; i < sizeof(int); i++)
-	{
-		ptrByte[i] = &kLen[i];
-	}*/
+    clmemcpy(ptrByte, (const unsigned char*)&kLen, sizeof (int));
     ptrByte += sizeof (int);
-    memcpy(ptrByte, &pwdlen, sizeof (int));
-	/*for(i = 0; i < sizeof(int); i++)
-	{
-		ptrByte[i] = pwdlen[i];
-	}*/
+    clmemcpy(ptrByte, (const unsigned char*)&pwdlen, sizeof (int));
     ptrByte += sizeof (int);
-    memcpy(ptrByte, &saltlen, sizeof (int));
-	/*for(i = 0; i < sizeof(int); i++)
-	{
-		ptrByte[i] = saltlen[i];
-	}*/
+    clmemcpy(ptrByte, (const unsigned char*)&saltlen, sizeof (int));
     ptrByte += sizeof (int);
-    memcpy(ptrByte, &timeCost, sizeof (int));
-	/*for(i = 0; i < sizeof(int); i++)
-	{
-		ptrByte[i] = timeCost[i];
-	}*/
+    clmemcpy(ptrByte, (const unsigned char*)&timeCost, sizeof (int));
     ptrByte += sizeof (int);
-    memcpy(ptrByte, &nRows, sizeof (int));
-	/*for(i = 0; i < sizeof(int); i++)
-	{
-		ptrByte[i] = nRows[i];
-	}*/
+    clmemcpy(ptrByte, (const unsigned char*)&nRows, sizeof (int));
     ptrByte += sizeof (int);
-    memcpy(ptrByte, &nCols, sizeof (int));
-	/*for(i = 0; i < sizeof(int); i++)
-	{
-		ptrByte[i] = nCols[i];
-	}*/
+    clmemcpy(ptrByte, (const unsigned char*)&nCols, sizeof (int));
     ptrByte += sizeof (int);
 
     //Now comes the padding
     *ptrByte = 0x80; //first byte of padding: right after the password
-    ptrByte = (uchar*) wholeMatrix; //resets the pointer to the start of the memory matrix
+    ptrByte = (byte*) wholeMatrix; //resets the pointer to the start of the memory matrix
     ptrByte += nBlocksInput * BLOCK_LEN_BLAKE2_SAFE_BYTES - 1; //sets the pointer to the correct position: end of incomplete block
     *ptrByte ^= 0x01; //last byte of padding: at the end of the last incomplete block
     //==========================================================================/
 
     //======================= Initializing the Sponge State ====================//
     //Sponge state: 16 uint64_t, BLOCK_LEN_INT64 words of them for the bitrate (b) and the remainder for the capacity (c)
-    //uint64_t *state = malloc(16 * sizeof (uint64_t));
+
+    uint64_t statearr[16];
+    uint64_t *state = statearr;
     initState(state);
     //==========================================================================/
 
@@ -675,8 +585,8 @@ void LYRA2(uchar *K, const uchar *pwd, const uchar *salt, unsigned int timeCost)
     	do {
   	    //Selects a pseudorandom index row*
   	    //------------------------------------------------------------------------------------------
-  	    rowa = ((unsigned int)state[0]) & (nRows-1);	//(USE THIS IF nRows IS A POWER OF 2)
-  	    //rowa = ((unsigned int) (state[0])) % nRows; //(USE THIS FOR THE "GENERIC" CASE)
+  	    //rowa = ((unsigned int)state[0]) & (nRows-1);	//(USE THIS IF nRows IS A POWER OF 2)
+  	    rowa = ((unsigned int) (state[0])) % nRows; //(USE THIS FOR THE "GENERIC" CASE)
   	    //------------------------------------------------------------------------------------------
 
   	    //Performs a reduced-round duplexing operation over M[row*] XOR M[prev], updating both M[row*] and M[row]
@@ -687,8 +597,8 @@ void LYRA2(uchar *K, const uchar *pwd, const uchar *salt, unsigned int timeCost)
 
   	    //updates row: goes to the next row to be computed
   	    //------------------------------------------------------------------------------------------
-  	    row = (row + step) & (nRows-1);	//(USE THIS IF nRows IS A POWER OF 2)
-  	    //row = (row + step) % nRows; //(USE THIS FOR THE "GENERIC" CASE)
+  	    //row = (row + step) & (nRows-1);	//(USE THIS IF nRows IS A POWER OF 2)
+  	    row = (row + step) % nRows; //(USE THIS FOR THE "GENERIC" CASE)
   	    //------------------------------------------------------------------------------------------
 
       } while (row != 0);
@@ -702,4 +612,5 @@ void LYRA2(uchar *K, const uchar *pwd, const uchar *salt, unsigned int timeCost)
     //Squeezes the key
     squeeze(state, K, kLen);
     //==========================================================================/
+
 }
