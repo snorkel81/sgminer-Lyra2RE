@@ -66,7 +66,6 @@ typedef long sph_s64;
 
 #define SPH_ECHO_64 1
 #define SPH_KECCAK_64 1
-#define SPH_JH_64 1
 #define SPH_SIMD_NOCOPY 0
 #define SPH_KECCAK_NOCOPY 0
 #define SPH_SMALL_FOOTPRINT_GROESTL 0
@@ -203,7 +202,17 @@ __kernel void search(__global unsigned char* block, volatile __global uint* outp
   //Lyra2
   
   {
-		LYRA2((uchar*)hash.h8, (uchar*)hash.h8, (uchar*)hash.h8, 1);
+		ulong htemp[8];
+		LYRA2(htemp, 64, hash.h8, 64, hash.h8, 64, 1);
+		hash.h8[0] = htemp[0];
+		hash.h8[1] = htemp[1];
+		hash.h8[2] = htemp[2];
+		hash.h8[3] = htemp[3];
+		hash.h8[4] = htemp[4];
+		hash.h8[5] = htemp[5];
+		hash.h8[6] = htemp[6];
+		hash.h8[7] = htemp[7];
+		
   }
   
   //skein

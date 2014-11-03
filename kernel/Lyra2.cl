@@ -531,20 +531,9 @@ void LYRA2(uchar *K, const uchar *pwd, const uchar *salt, unsigned int timeCost)
 	const unsigned int pwdlen = passwordLength;
 	const unsigned int saltlen = saltLength;
 		
-	uint64_t wholeMatrixarr[(numRows * ROW_LEN_BYTES) / 8];
-	uint64_t memMatrixarr[numRows];
-	uint64_t statearr[16];
-	
-	uint64_t *uintpointers;
-	uintpointers = memMatrixarr;
-	
-	uint64_t *wholeMatrix;// = wholeMatrixarr;
-	uint64_t **memMatrix;// = memMatrixarr;
-	uint64_t *state;// = statearr;
-	
-	state = statearr;
-	wholeMatrix = wholeMatrixarr;
-	memMatrix = &uintpointers;
+	uint64_t wholeMatrix[(numRows * ROW_LEN_BYTES) / 8];
+	uint64_t memMatrix[numRows];
+	uint64_t state[16];
 
     //========== Initializing the Memory Matrix and pointers to it =============//
     //Tries to allocate enough space for the whole memory matrix
