@@ -20,7 +20,9 @@
 #ifndef LYRA2_H_
 #define LYRA2_H_
 
-typedef unsigned char byte ;
+#include <stdint.h>
+
+typedef unsigned char byte;
 
 //Block length required so Blake2's Initialization Vector (IV) is not overwritten (THIS SHOULD NOT BE MODIFIED)
 #define BLOCK_LEN_BLAKE2_SAFE_INT64 8                                   //512 bits (=64 bytes, =8 uint64_t)
@@ -36,29 +38,13 @@ typedef unsigned char byte ;
 #endif
 
 #ifndef N_COLS
-        #define N_COLS 8                               //Number of columns in the memory matrix: fixed to 64 by default
+        #define N_COLS 8                                //Number of columns in the memory matrix: fixed to 64 by default
 #endif
 
 #define ROW_LEN_INT64 (BLOCK_LEN_INT64 * N_COLS) //Total length of a row: N_COLS blocks
 #define ROW_LEN_BYTES (ROW_LEN_INT64 * 8)        //Number of bytes per row
 
 
-int LYRA2(void *K, unsigned int kLen, const void *pwd, unsigned int pwdlen, const void *salt, unsigned int saltlen, unsigned int timeCost, unsigned int nRows, unsigned int nCols);
-
-int PHS(void *out, size_t outlen, const void *in, size_t inlen, const void *salt, size_t saltlen, unsigned int t_cost, unsigned int m_cost);
-
-/////TESTS/////
-//void wander(unsigned int timeCost, unsigned int nRows);
-//void wander(unsigned int timeCost, unsigned int nRows);
-//void wanderc(unsigned int timeCost, unsigned int nRows);
-//void wanderd(unsigned int timeCost, unsigned int nRows);
-//void setup(unsigned int timeCost, unsigned int nRows);
-//void setupv5window(unsigned int timeCost, unsigned int nRows);
-//void setupc(unsigned int timeCost, unsigned int nRows);
-//void setupd(unsigned int timeCost, unsigned int nRows);
-//void setupv5(unsigned int timeCost, unsigned int nRows);
-//void setupv5c(unsigned int timeCost, unsigned int nRows);
-//void setupv5d(unsigned int timeCost, unsigned int nRows);
-///////////////
+int LYRA2(void *K, uint64_t kLen, const void *pwd, uint64_t pwdlen, const void *salt, uint64_t saltlen, uint64_t timeCost, uint64_t nRows, uint64_t nCols);
 
 #endif /* LYRA2_H_ */
