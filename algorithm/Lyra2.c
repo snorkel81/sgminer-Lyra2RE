@@ -63,6 +63,7 @@ int LYRA2(void *K, uint64_t kLen, const void *pwd, uint64_t pwdlen, const void *
     if (wholeMatrix == NULL) {
       return -1;
     }
+	memset(wholeMatrix, 0, i);
 
     //Allocates pointers to each row of the matrix
     uint64_t **memMatrix = malloc(nRows * sizeof (uint64_t*));
