@@ -1,7 +1,7 @@
 
 
 /*Blake2b IV Array*/
-__constant static const sph_u64 blake2b_IV[8] =
+static const sph_u64 blake2b_IV[8] =
 {
   0x6a09e667f3bcc908ULL, 0xbb67ae8584caa73bULL,
   0x3c6ef372fe94f82bULL, 0xa54ff53a5f1d36f1ULL,
@@ -39,68 +39,69 @@ c += d; b ^= c; b = SPH_ROTR64(b, 63); \
 
 
 #define reduceDuplexRowSetup(rowIn, rowInOut, rowOut) \
-   { \
+ do { \
 	for (int i = 0; i < 8; i++) \
-				{ \
+	{ \
 \
-		for (int j = 0; j < 12; j++) {state[j] ^= Matrix[12 * i + j][rowIn] + Matrix[12 * i + j][rowInOut];} \
+		for (int j = 0; j < 12; j++) {state[j] ^= Matrix[rowIn][12 * i + j] + Matrix[rowInOut][12 * i + j];} \
 		round_lyra(state); \
-		for (int j = 0; j < 12; j++) {Matrix[j + 84 - 12 * i][rowOut] = Matrix[12 * i + j][rowIn] ^ state[j];} \
+		for (int j = 0; j < 12; j++) {Matrix[rowOut][j + 84 - 12 * i] = Matrix[rowIn][12 * i + j] ^ state[j];} \
 \
-		Matrix[0 + 12 * i][rowInOut] ^= state[11]; \
-		Matrix[1 + 12 * i][rowInOut] ^= state[0]; \
-		Matrix[2 + 12 * i][rowInOut] ^= state[1]; \
-		Matrix[3 + 12 * i][rowInOut] ^= state[2]; \
-		Matrix[4 + 12 * i][rowInOut] ^= state[3]; \
-		Matrix[5 + 12 * i][rowInOut] ^= state[4]; \
-		Matrix[6 + 12 * i][rowInOut] ^= state[5]; \
-		Matrix[7 + 12 * i][rowInOut] ^= state[6]; \
-		Matrix[8 + 12 * i][rowInOut] ^= state[7]; \
-		Matrix[9 + 12 * i][rowInOut] ^= state[8]; \
-		Matrix[10 + 12 * i][rowInOut] ^= state[9]; \
-		Matrix[11 + 12 * i][rowInOut] ^= state[10]; \
-				} \
+		Matrix[rowInOut][0 + 12 * i] ^= state[11]; \
+		Matrix[rowInOut][1 + 12 * i] ^= state[0]; \
+		Matrix[rowInOut][2 + 12 * i] ^= state[1]; \
+		Matrix[rowInOut][3 + 12 * i] ^= state[2]; \
+		Matrix[rowInOut][4 + 12 * i] ^= state[3]; \
+		Matrix[rowInOut][5 + 12 * i] ^= state[4]; \
+		Matrix[rowInOut][6 + 12 * i] ^= state[5]; \
+		Matrix[rowInOut][7 + 12 * i] ^= state[6]; \
+		Matrix[rowInOut][8 + 12 * i] ^= state[7]; \
+		Matrix[rowInOut][9 + 12 * i] ^= state[8]; \
+		Matrix[rowInOut][10 + 12 * i] ^= state[9]; \
+		Matrix[rowInOut][11 + 12 * i] ^= state[10]; \
+	} \
  \
-   } 
+ } while (0)
 
-#define reduceDuplexRow(rowIn, rowInOut, rowOut) \
-  { \
+ #define reduceDuplexRow(rowIn, rowInOut, rowOut) \
+ do { \
+ \
 	 for (int i = 0; i < 8; i++) \
-	 	 	 	 	 { \
+	 	 { \
 		 for (int j = 0; j < 12; j++) \
-			 state[j] ^= Matrix[12 * i + j][rowIn] + Matrix[12 * i + j][rowInOut]; \
+			 state[j] ^= Matrix[rowIn][12 * i + j] + Matrix[rowInOut][12 * i + j]; \
  \
 		 round_lyra(state); \
-		 for (int j = 0; j < 12; j++) {Matrix[j + 12 * i][rowOut] ^= state[j];} \
-\
-		 Matrix[0 + 12 * i][rowInOut] ^= state[11]; \
-		 Matrix[1 + 12 * i][rowInOut] ^= state[0]; \
-		 Matrix[2 + 12 * i][rowInOut] ^= state[1]; \
-		 Matrix[3 + 12 * i][rowInOut] ^= state[2]; \
-		 Matrix[4 + 12 * i][rowInOut] ^= state[3]; \
-		 Matrix[5 + 12 * i][rowInOut] ^= state[4]; \
-		 Matrix[6 + 12 * i][rowInOut] ^= state[5]; \
-		 Matrix[7 + 12 * i][rowInOut] ^= state[6]; \
-		 Matrix[8 + 12 * i][rowInOut] ^= state[7]; \
-		 Matrix[9 + 12 * i][rowInOut] ^= state[8]; \
-		 Matrix[10 + 12 * i][rowInOut] ^= state[9]; \
-		 Matrix[11 + 12 * i][rowInOut] ^= state[10]; \
-	 	 	 	 	 } \
+		 for (int j = 0; j < 12; j++) Matrix[rowOut][j + 12 * i] ^= state[j]; \
+		 Matrix[rowInOut][0 + 12 * i] ^= state[11]; \
+		 Matrix[rowInOut][1 + 12 * i] ^= state[0]; \
+		 Matrix[rowInOut][2 + 12 * i] ^= state[1]; \
+		 Matrix[rowInOut][3 + 12 * i] ^= state[2]; \
+		 Matrix[rowInOut][4 + 12 * i] ^= state[3]; \
+		 Matrix[rowInOut][5 + 12 * i] ^= state[4]; \
+		 Matrix[rowInOut][6 + 12 * i] ^= state[5]; \
+		 Matrix[rowInOut][7 + 12 * i] ^= state[6]; \
+		 Matrix[rowInOut][8 + 12 * i] ^= state[7]; \
+		 Matrix[rowInOut][9 + 12 * i] ^= state[8]; \
+		 Matrix[rowInOut][10 + 12 * i] ^= state[9]; \
+		 Matrix[rowInOut][11 + 12 * i] ^= state[10]; \
+	 	 } \
  \
-  } 
-#define absorbblock(in)  { \
-	state[0] ^= Matrix[0][in]; \
-	state[1] ^= Matrix[1][in]; \
-	state[2] ^= Matrix[2][in]; \
-	state[3] ^= Matrix[3][in]; \
-	state[4] ^= Matrix[4][in]; \
-	state[5] ^= Matrix[5][in]; \
-	state[6] ^= Matrix[6][in]; \
-	state[7] ^= Matrix[7][in]; \
-	state[8] ^= Matrix[8][in]; \
-	state[9] ^= Matrix[9][in]; \
-	state[10] ^= Matrix[10][in]; \
-	state[11] ^= Matrix[11][in]; \
+ } while (0)
+
+#define absorbblock(in) do { \
+	state[0] ^= Matrix[in][0]; \
+	state[1] ^= Matrix[in][1]; \
+	state[2] ^= Matrix[in][2]; \
+	state[3] ^= Matrix[in][3]; \
+	state[4] ^= Matrix[in][4]; \
+	state[5] ^= Matrix[in][5]; \
+	state[6] ^= Matrix[in][6]; \
+	state[7] ^= Matrix[in][7]; \
+	state[8] ^= Matrix[in][8]; \
+	state[9] ^= Matrix[in][9]; \
+	state[10] ^= Matrix[in][10]; \
+	state[11] ^= Matrix[in][11]; \
 	round_lyra(state); \
 	round_lyra(state); \
 	round_lyra(state); \
@@ -113,4 +114,4 @@ c += d; b ^= c; b = SPH_ROTR64(b, 63); \
 	round_lyra(state); \
 	round_lyra(state); \
 	round_lyra(state); \
-  } 
+} while(0)

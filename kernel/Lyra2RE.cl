@@ -186,9 +186,11 @@ __kernel void search(__global char* block, __global hash_t* hashes)
 	for (int i = 0; i < 16; i++) {
 		 int j = i & 7;
 		h[j] ^= v[i];}
-
+//////////////////////
+//save the hash
 for (int i=0;i<8;i++) {hash->h4[i]=SWAP4(h[i]);}
-
+//printf("h hash %08x %08x %08x %08x\n",h[0],h[1],h[2],h[3]);
+//printf("blake hash %08x %08x %08x %08x\n",hash->h4[0],hash->h4[1],hash->h4[2],hash->h4[3]);
  barrier(CLK_GLOBAL_MEM_FENCE);
 
 }
@@ -231,8 +233,9 @@ __kernel void search2(__global hash_t* hashes)
 
 
   sph_u64 state[16];
-//  uint2 state[16];
-  for (int i = 0; i<4; i++) { state[i] = hash->h8[i];} //password
+
+  for (int i = 0; i<4; i++) { state[i] = hash->h8[i]; } //password
+
   for (int i = 0; i<4; i++) { state[i + 4] = state[i]; } //salt 
 
   for (int i = 0; i<8; i++) { state[i + 8] = blake2b_IV[i]; }
@@ -241,12 +244,12 @@ __kernel void search2(__global hash_t* hashes)
 
   for (int i = 0; i<24; i++) { round_lyra(state); } //because 12 is not enough
 
-  sph_u64 Matrix[96][8]; // very uncool
+  sph_u64 Matrix[8][96]; // very uncool
   /// reducedSqueezeRow0
 
   for (int i = 0; i < 8; i++)
   {
-	  for (int j = 0; j<12; j++) { Matrix[j + 84 - 12 * i][0] = state[j]; }
+	  for (int j = 0; j<12; j++) { Matrix[0][j + 84 - 12 * i] = state[j]; }
 	  round_lyra(state);
   }
 
@@ -254,9 +257,9 @@ __kernel void search2(__global hash_t* hashes)
 
   for (int i = 0; i < 8; i++)
   {
-	  for (int j = 0; j<12; j++) { state[j] ^= Matrix[j + 12 * i][0]; }
+	  for (int j = 0; j<12; j++) { state[j] ^= Matrix[0][j + 12 * i]; }
 	  round_lyra(state);
-	  for (int j = 0; j<12; j++) { Matrix[j + 84 - 12 * i][1] = Matrix[j + 12 * i][0] ^ state[j]; }
+	  for (int j = 0; j<12; j++) { Matrix[1][j + 84 - 12 * i] = Matrix[0][j + 12 * i] ^ state[j]; }
   }
 
  
@@ -330,7 +333,7 @@ __kernel void search3(__global hash_t* hashes)
 		p6 = h[6] + t[1];
 		p7 = h[7];
 
-        #pragma unroll 
+        
 		for (int i = 1; i<19; i+=2) {Round_8_512(p0,p1,p2,p3,p4,p5,p6,p7,i);}
         p0 ^= dt0;
         p1 ^= dt1;
@@ -355,7 +358,6 @@ __kernel void search3(__global hash_t* hashes)
 		p5 += t[0];  //p5 already equal h[5] 
 		p6 += t[1];
        
-        #pragma unroll
 		for (int i = 1; i<19; i+=2) { Round_8_512(p0, p1, p2, p3, p4, p5, p6, p7, i); }
 
 		hash->h8[0]      = p0;
@@ -399,11 +401,16 @@ __kernel void search4(__global hash_t* hashes, __global uint* output, const uint
 
   PERM_SMALL_P(message);
 
-  state[15] ^= message[15];
+  for (int i=0;i<16;i++) {state[i] ^= message[i];}
+ 
+//  printf("target %08x\n", target);
   barrier(CLK_GLOBAL_MEM_FENCE);
 
   bool result = ( state[15] <= target);
   if (result) {
+//	  printf("target %08x\n",target);
+//printf("gpu hash %08x %08x %08x %08x\n",state[8],state[9],state[10],state[11]);
+//printf("gpu hash %08x %08x %08x %08x\n",state[12],state[13],state[14],state[15]);
   output[atomic_inc(output+0xFF)] = SWAP4(gid);}
 
 }
