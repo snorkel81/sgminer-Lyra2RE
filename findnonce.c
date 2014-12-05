@@ -16,6 +16,7 @@
 
 #include "findnonce.h"
 #include "algorithm/scrypt.h"
+#include "sph/sph_blake.h"
 
 const uint32_t SHA256_K[64] = {
   0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
@@ -211,6 +212,30 @@ static void *postcalc_hash(void *userdata)
 
   return NULL;
 }
+
+/*
+void precalc_hash_blake256(dev_blk_ctx *blk, uint32_t *state, uint32_t *data)
+{
+	blake_state256 S;
+	blake256_init(&S);
+	blake256_update(&S, data);
+
+	blk->ctx_a = S.h[0];
+	blk->ctx_b = S.h[1];
+	blk->ctx_c = S.h[2];
+	blk->ctx_d = S.h[3];
+	blk->ctx_e = S.h[4];
+	blk->ctx_f = S.h[5];
+	blk->ctx_g = S.h[6];
+	blk->ctx_h = S.h[7];
+
+	blk->cty_a = data[16];
+	blk->cty_b = data[17];
+	blk->cty_c = data[18];
+
+}
+*/
+
 
 void postcalc_hash_async(struct thr_info *thr, struct work *work, uint32_t *res)
 {

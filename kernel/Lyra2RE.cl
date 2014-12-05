@@ -2,7 +2,7 @@
  * Lyra2RE kernel implementation.
  *
  * ==========================(LICENSE BEGIN)============================
- * 
+ * Copyright (c) 2014 djm34
  * Copyright (c) 2014 James Lovejoy
  * Copyright (c) 2014 phm
  * 
@@ -30,6 +30,8 @@
  * @author   James Lovejoy <jameslovejoy1@gmail.com>
  */
 
+#pragma OPENCL EXTENSION cl_amd_printf : enable
+
 #ifndef LYRA2RE_CL
 #define LYRA2RE_CL
 
@@ -50,6 +52,7 @@ typedef long long sph_s64;
 typedef unsigned long sph_u64;
 typedef long sph_s64;
 #endif
+
 
 #define SPH_64 1
 #define SPH_64_TRUE 1
@@ -72,18 +75,10 @@ typedef long sph_s64;
 #define SPH_GROESTL_BIG_ENDIAN 0
 #define SPH_CUBEHASH_UNROLL 0
 
-#ifndef SPH_COMPACT_BLAKE_64
-  #define SPH_COMPACT_BLAKE_64 0
-#endif
-#ifndef SPH_LUFFA_PARALLEL
-  #define SPH_LUFFA_PARALLEL 0
-#endif
-#ifndef SPH_KECCAK_UNROLL
-  #define SPH_KECCAK_UNROLL   0
-#endif
 
-#include "blake.cl"
-#include "groestl.cl"
+
+#include "blake256.cl"
+#include "groestl256.cl"
 #include "Lyra2.cl"
 #include "keccak.cl"
 #include "skein.cl"
@@ -95,203 +90,325 @@ typedef long sph_s64;
   #define DEC64E(x) (x)
   #define DEC64BE(x) (*(const __global sph_u64 *) (x));
   #define DEC64LE(x) SWAP8(*(const __global sph_u64 *) (x));
+  #define DEC32LE(x) (*(const __global sph_u32 *) (x));
 #else
   #define DEC64E(x) SWAP8(x)
   #define DEC64BE(x) SWAP8(*(const __global sph_u64 *) (x));
   #define DEC64LE(x) (*(const __global sph_u64 *) (x));
+#define DEC32LE(x) SWAP4(*(const __global sph_u32 *) (x));
 #endif
+
+typedef union {
+  unsigned char h1[64];
+  uint h4[16];
+  ulong h8[8];
+} hash_t;
 
 __attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search(__global unsigned char* block, volatile __global uint* output, const ulong target)
+__kernel void search(__global char* block, __global hash_t* hashes)
+{
+
+ uint gid = get_global_id(0);
+  __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
+
+	sph_u32 h[8];
+	for (int i = 0; i<8; i++) { h[i] = c_IV256[i]; }  
+
+	sph_u32 m[16];
+	sph_u32 v[16];
+
+// Compress first round ==> temporary this should be done cpu
+	for (int i = 0; i < 16; i++) {
+		m[i] = DEC32LE(block +i*4);
+	}
+
+// {printf("The Message 0 and 1 %08x %08x\n",m[0],m[1]);}
+	for (int i = 0; i < 8; i++) {v[i] = h[i];}
+
+	v[8] =  c_u256[0];
+	v[9] =  c_u256[1];
+	v[10] = c_u256[2];
+	v[11] = c_u256[3];
+
+	v[12] = c_u256[4] ^ 512;
+	v[13] = c_u256[5] ^ 512;
+	v[14] = c_u256[6];
+	v[15] = c_u256[7];
+
+
+	for (int r = 0; r < 14; r++) {
+		GS(0, 4, 0x8, 0xC, 0x0);
+		GS(1, 5, 0x9, 0xD, 0x2);
+		GS(2, 6, 0xA, 0xE, 0x4);
+		GS(3, 7, 0xB, 0xF, 0x6);
+		GS(0, 5, 0xA, 0xF, 0x8);
+		GS(1, 6, 0xB, 0xC, 0xA);
+		GS(2, 7, 0x8, 0xD, 0xC);
+		GS(3, 4, 0x9, 0xE, 0xE);
+	}
+
+	for (int i = 0; i < 16; i++) {
+		 int j = i & 7;
+		 h[j] ^= v[i];
+	}
+//////////////////////
+
+// compress 2nd round
+ m[0] = DEC32LE(block + 64);
+ m[1] = DEC32LE(block + 68);
+ m[2] = DEC32LE(block + 72);
+ m[3] = SWAP4(gid);
+
+	for (int i = 4; i < 16; i++) {m[i] = c_Padding[i];}
+
+	for (int i = 0; i < 8; i++) {v[i] = h[i];}
+
+	v[8] =  c_u256[0];
+	v[9] =  c_u256[1];
+	v[10] = c_u256[2];
+	v[11] = c_u256[3];
+	v[12] = c_u256[4] ^ 640;
+	v[13] = c_u256[5] ^ 640;
+	v[14] = c_u256[6];
+	v[15] = c_u256[7];
+
+	for (int r = 0; r < 14; r++) {	
+		GS(0, 4, 0x8, 0xC, 0x0);
+		GS(1, 5, 0x9, 0xD, 0x2);
+		GS(2, 6, 0xA, 0xE, 0x4);
+		GS(3, 7, 0xB, 0xF, 0x6);
+		GS(0, 5, 0xA, 0xF, 0x8);
+		GS(1, 6, 0xB, 0xC, 0xA);
+		GS(2, 7, 0x8, 0xD, 0xC);
+		GS(3, 4, 0x9, 0xE, 0xE);
+	}
+
+	for (int i = 0; i < 16; i++) {
+		 int j = i & 7;
+		h[j] ^= v[i];}
+
+for (int i=0;i<8;i++) {hash->h4[i]=SWAP4(h[i]);}
+
+ barrier(CLK_GLOBAL_MEM_FENCE);
+
+}
+
+// keccak256
+
+
+__attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
+__kernel void search1(__global hash_t* hashes)
 {
   uint gid = get_global_id(0);
-  union {
-    unsigned char h1[64];
-    uint h4[16];
-    ulong h8[8];
-  } hash;
-  
-  //blake
-  
-   {
-    sph_u64 H0 = SPH_C64(0x6A09E667F3BCC908), H1 = SPH_C64(0xBB67AE8584CAA73B);
-    sph_u64 H2 = SPH_C64(0x3C6EF372FE94F82B), H3 = SPH_C64(0xA54FF53A5F1D36F1);
-    sph_u64 H4 = SPH_C64(0x510E527FADE682D1), H5 = SPH_C64(0x9B05688C2B3E6C1F);
-    sph_u64 H6 = SPH_C64(0x1F83D9ABFB41BD6B), H7 = SPH_C64(0x5BE0CD19137E2179);
-    sph_u64 S0 = 0, S1 = 0, S2 = 0, S3 = 0;
-    sph_u64 T0 = SPH_C64(0xFFFFFFFFFFFFFC00) + (80 << 3), T1 = 0xFFFFFFFFFFFFFFFF;;
+  __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
 
-    if ((T0 = SPH_T64(T0 + 1024)) < 1024)
-    {
-      T1 = SPH_T64(T1 + 1);
-    }
-    sph_u64 M0, M1, M2, M3, M4, M5, M6, M7;
-    sph_u64 M8, M9, MA, MB, MC, MD, ME, MF;
-    sph_u64 V0, V1, V2, V3, V4, V5, V6, V7;
-    sph_u64 V8, V9, VA, VB, VC, VD, VE, VF;
-    M0 = DEC64BE(block +   0);
-    M1 = DEC64BE(block +   8);
-    M2 = DEC64BE(block +  16);
-    M3 = DEC64BE(block +  24);
-    M4 = DEC64BE(block +  32);
-    M5 = DEC64BE(block +  40);
-    M6 = DEC64BE(block +  48);
-    M7 = DEC64BE(block +  56);
-    M8 = DEC64BE(block +  64);
-    M9 = DEC64BE(block +  72);
-    M9 &= 0xFFFFFFFF00000000;
-    M9 ^= SWAP4(gid);
-    MA = 0x8000000000000000;
-    MB = 0;
-    MC = 0;
-    MD = 1;
-    ME = 0;
-    MF = 0x280;
+ 		sph_u64 keccak_gpu_state[25];
 
-    COMPRESS64;
+		for (int i = 0; i<25; i++) {
+			if (i<4) { keccak_gpu_state[i] = hash->h8[i]; }
+			else    { keccak_gpu_state[i] = 0; }
+		}
+		keccak_gpu_state[4] = 0x0000000000000001;
+		keccak_gpu_state[16] = 0x8000000000000000;
 
-    hash.h8[0] = H0;
-    hash.h8[1] = H1;
-    hash.h8[2] = H2;
-    hash.h8[3] = H3;
-    hash.h8[4] = H4;
-    hash.h8[5] = H5;
-    hash.h8[6] = H6;
-    hash.h8[7] = H7;
-  }
-  
-    // keccak
-  {
-    sph_u64 a00 = 0, a01 = 0, a02 = 0, a03 = 0, a04 = 0;
-    sph_u64 a10 = 0, a11 = 0, a12 = 0, a13 = 0, a14 = 0;
-    sph_u64 a20 = 0, a21 = 0, a22 = 0, a23 = 0, a24 = 0;
-    sph_u64 a30 = 0, a31 = 0, a32 = 0, a33 = 0, a34 = 0;
-    sph_u64 a40 = 0, a41 = 0, a42 = 0, a43 = 0, a44 = 0;
+		keccak_block(keccak_gpu_state);
+		for (int i = 0; i<4; i++) { hash->h8[i] = keccak_gpu_state[i]; }
 
-    a10 = SPH_C64(0xFFFFFFFFFFFFFFFF);
-    a20 = SPH_C64(0xFFFFFFFFFFFFFFFF);
-    a31 = SPH_C64(0xFFFFFFFFFFFFFFFF);
-    a22 = SPH_C64(0xFFFFFFFFFFFFFFFF);
-    a23 = SPH_C64(0xFFFFFFFFFFFFFFFF);
-    a04 = SPH_C64(0xFFFFFFFFFFFFFFFF);
+  barrier(CLK_GLOBAL_MEM_FENCE);
 
-    a00 ^= SWAP8(hash.h8[0]);
-    a10 ^= SWAP8(hash.h8[1]);
-    a20 ^= SWAP8(hash.h8[2]);
-    a30 ^= SWAP8(hash.h8[3]);
-    a40 ^= SWAP8(hash.h8[4]);
-    a01 ^= SWAP8(hash.h8[5]);
-    a11 ^= SWAP8(hash.h8[6]);
-    a21 ^= SWAP8(hash.h8[7]);
-    a31 ^= 0x8000000000000001;
-    KECCAK_F_1600;
-    // Finalize the "lane complement"
-    a10 = ~a10;
-    a20 = ~a20;
 
-    hash.h8[0] = SWAP8(a00);
-    hash.h8[1] = SWAP8(a10);
-    hash.h8[2] = SWAP8(a20);
-    hash.h8[3] = SWAP8(a30);
-    hash.h8[4] = SWAP8(a40);
-    hash.h8[5] = SWAP8(a01);
-    hash.h8[6] = SWAP8(a11);
-    hash.h8[7] = SWAP8(a21);
-  }
-  
-  //Lyra2
-  
-  {
-		ulong htemp[8];
-		LYRA2(htemp, 64, hash.h8, 64, hash.h8, 64, 1);
-		hash.h8[0] = htemp[0];
-		hash.h8[1] = htemp[1];
-		hash.h8[2] = htemp[2];
-		hash.h8[3] = htemp[3];
-		hash.h8[4] = htemp[4];
-		hash.h8[5] = htemp[5];
-		hash.h8[6] = htemp[6];
-		hash.h8[7] = htemp[7];
-		
-  }
-  
-  //skein
-  
-{
-    sph_u64 h0 = SPH_C64(0x4903ADFF749C51CE), h1 = SPH_C64(0x0D95DE399746DF03), h2 = SPH_C64(0x8FD1934127C79BCE), h3 = SPH_C64(0x9A255629FF352CB1), h4 = SPH_C64(0x5DB62599DF6CA7B0), h5 = SPH_C64(0xEABE394CA9D5C3F4), h6 = SPH_C64(0x991112C71A75B523), h7 = SPH_C64(0xAE18A40B660FCC33);
-    sph_u64 m0, m1, m2, m3, m4, m5, m6, m7;
-    sph_u64 bcount = 0;
-
-    m0 = SWAP8(hash.h8[0]);
-    m1 = SWAP8(hash.h8[1]);
-    m2 = SWAP8(hash.h8[2]);
-    m2 = SWAP8(hash.h8[2]);
-    m3 = SWAP8(hash.h8[3]);
-    m4 = SWAP8(hash.h8[4]);
-    m5 = SWAP8(hash.h8[5]);
-    m6 = SWAP8(hash.h8[6]);
-    m7 = SWAP8(hash.h8[7]);
-    UBI_BIG(480, 64);
-    bcount = 0;
-    m0 = m1 = m2 = m3 = m4 = m5 = m6 = m7 = 0;
-    UBI_BIG(510, 8);
-    hash.h8[0] = SWAP8(h0);
-    hash.h8[1] = SWAP8(h1);
-    hash.h8[2] = SWAP8(h2);
-    hash.h8[3] = SWAP8(h3);
-    hash.h8[4] = SWAP8(h4);
-    hash.h8[5] = SWAP8(h5);
-    hash.h8[6] = SWAP8(h6);
-    hash.h8[7] = SWAP8(h7);
-  }
-
-// groestl
-  {
-    sph_u64 H[16];
-    for (unsigned int u = 0; u < 15; u ++)
-      H[u] = 0;
-#if USE_LE
-    H[15] = ((sph_u64)(512 & 0xFF) << 56) | ((sph_u64)(512 & 0xFF00) << 40);
-#else
-    H[15] = (sph_u64)512;
-#endif
-
-    sph_u64 g[16], m[16];
-    m[0] = DEC64E(hash.h8[0]);
-    m[1] = DEC64E(hash.h8[1]);
-    m[2] = DEC64E(hash.h8[2]);
-    m[3] = DEC64E(hash.h8[3]);
-    m[4] = DEC64E(hash.h8[4]);
-    m[5] = DEC64E(hash.h8[5]);
-    m[6] = DEC64E(hash.h8[6]);
-    m[7] = DEC64E(hash.h8[7]);
-    for (unsigned int u = 0; u < 16; u ++)
-      g[u] = m[u] ^ H[u];
-    m[8] = 0x80; g[8] = m[8] ^ H[8];
-    m[9] = 0; g[9] = m[9] ^ H[9];
-    m[10] = 0; g[10] = m[10] ^ H[10];
-    m[11] = 0; g[11] = m[11] ^ H[11];
-    m[12] = 0; g[12] = m[12] ^ H[12];
-    m[13] = 0; g[13] = m[13] ^ H[13];
-    m[14] = 0; g[14] = m[14] ^ H[14];
-    m[15] = 0x100000000000000; g[15] = m[15] ^ H[15];
-    PERM_BIG_P(g);
-    PERM_BIG_Q(m);
-    for (unsigned int u = 0; u < 16; u ++)
-      H[u] ^= g[u] ^ m[u];
-    sph_u64 xH[16];
-    for (unsigned int u = 0; u < 16; u ++)
-      xH[u] = H[u];
-    PERM_BIG_P(xH);
-    for (unsigned int u = 0; u < 16; u ++)
-      H[u] ^= xH[u];
-    for (unsigned int u = 0; u < 8; u ++)
-      hash.h8[u] = DEC64E(H[u + 8]);
-  }
-
-  bool result = (SWAP8(hash.h8[3]) <= target);
-  if (result)
-    output[output[0xFF]++] = SWAP4(gid);
 }
+
+/// lyra2 algo 
+
+
+__attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
+__kernel void search2(__global hash_t* hashes)
+{
+ uint gid = get_global_id(0);
+  __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
+
+
+
+  sph_u64 state[16];
+//  uint2 state[16];
+  for (int i = 0; i<4; i++) { state[i] = hash->h8[i];} //password
+  for (int i = 0; i<4; i++) { state[i + 4] = state[i]; } //salt 
+
+  for (int i = 0; i<8; i++) { state[i + 8] = blake2b_IV[i]; }
+
+  //     blake2blyra x2 
+
+  for (int i = 0; i<24; i++) { round_lyra(state); } //because 12 is not enough
+
+  sph_u64 Matrix[96][8]; // very uncool
+  /// reducedSqueezeRow0
+
+  for (int i = 0; i < 8; i++)
+  {
+	  for (int j = 0; j<12; j++) { Matrix[j + 84 - 12 * i][0] = state[j]; }
+	  round_lyra(state);
+  }
+
+  /// reducedSqueezeRow1
+
+  for (int i = 0; i < 8; i++)
+  {
+	  for (int j = 0; j<12; j++) { state[j] ^= Matrix[j + 12 * i][0]; }
+	  round_lyra(state);
+	  for (int j = 0; j<12; j++) { Matrix[j + 84 - 12 * i][1] = Matrix[j + 12 * i][0] ^ state[j]; }
+  }
+
+ 
+  reduceDuplexRowSetup(1, 0, 2);
+  reduceDuplexRowSetup(2, 1, 3);
+  reduceDuplexRowSetup(3, 0, 4);
+  reduceDuplexRowSetup(4, 3, 5);
+  reduceDuplexRowSetup(5, 2, 6);
+  reduceDuplexRowSetup(6, 1, 7);
+
+  sph_u64 rowa;
+  rowa = state[0] & 7;
+
+  reduceDuplexRow(7, rowa, 0);
+  rowa = state[0] & 7;
+  reduceDuplexRow(0, rowa, 3);
+  rowa = state[0] & 7;
+  reduceDuplexRow(3, rowa, 6);
+  rowa = state[0] & 7;
+  reduceDuplexRow(6, rowa, 1);
+  rowa = state[0] & 7;
+  reduceDuplexRow(1, rowa, 4);
+  rowa = state[0] & 7;
+  reduceDuplexRow(4, rowa, 7);
+  rowa = state[0] & 7;
+  reduceDuplexRow(7, rowa, 2);
+  rowa = state[0] & 7;
+  reduceDuplexRow(2, rowa, 5);
+
+  absorbblock(rowa);
+
+  for (int i = 0; i<4; i++) {hash->h8[i] = state[i];} 
+
+  barrier(CLK_GLOBAL_MEM_FENCE);
+
+}
+
+//skein256
+
+__attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
+__kernel void search3(__global hash_t* hashes)
+{
+ uint gid = get_global_id(0);
+  __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
+
+
+		sph_u64 h[9];
+		sph_u64 t[3];
+        sph_u64 dt0,dt1,dt2,dt3;
+		sph_u64 p0, p1, p2, p3, p4, p5, p6, p7;
+        h[8] = skein_ks_parity;
+		for (int i = 0; i<8; i++) {
+			h[i] = SKEIN_IV512_256[i];
+			h[8] ^= h[i];}
+		    
+			t[0]=t12[0];
+			t[1]=t12[1];
+			t[2]=t12[2];
+
+        dt0=hash->h8[0];
+        dt1=hash->h8[1];
+        dt2=hash->h8[2];
+        dt3=hash->h8[3];
+
+		p0 = h[0] + dt0;
+		p1 = h[1] + dt1;
+		p2 = h[2] + dt2;
+		p3 = h[3] + dt3;
+		p4 = h[4];
+		p5 = h[5] + t[0];
+		p6 = h[6] + t[1];
+		p7 = h[7];
+
+        #pragma unroll 
+		for (int i = 1; i<19; i+=2) {Round_8_512(p0,p1,p2,p3,p4,p5,p6,p7,i);}
+        p0 ^= dt0;
+        p1 ^= dt1;
+        p2 ^= dt2;
+        p3 ^= dt3;
+
+		h[0] = p0;
+		h[1] = p1;
+		h[2] = p2;
+		h[3] = p3;
+		h[4] = p4;
+		h[5] = p5;
+		h[6] = p6;
+		h[7] = p7;
+		h[8] = skein_ks_parity;
+        
+		for (int i = 0; i<8; i++) { h[8] ^= h[i]; }
+		
+		t[0] = t12[3];
+		t[1] = t12[4];
+		t[2] = t12[5];
+		p5 += t[0];  //p5 already equal h[5] 
+		p6 += t[1];
+       
+        #pragma unroll
+		for (int i = 1; i<19; i+=2) { Round_8_512(p0, p1, p2, p3, p4, p5, p6, p7, i); }
+
+		hash->h8[0]      = p0;
+		hash->h8[1]      = p1;
+		hash->h8[2]      = p2;
+		hash->h8[3]      = p3;
+	
+
+
+  barrier(CLK_GLOBAL_MEM_FENCE);
+
+}
+
+//groestl256
+
+__attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
+__kernel void search4(__global hash_t* hashes, __global uint* output, const uint target)
+{
+  uint gid = get_global_id(0);
+  __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
+
+  sph_u32 message[16],state[16];
+
+  for (int k = 0; k<8; k++) {message[k]=hash->h4[k];}
+
+  for (int k = 9; k<15; k++) { message[k] = 0;}
+
+  message[8] = 0x80;
+  message[15] = 0x01000000;
+
+  for (int u = 0; u<16; u++) {state[u] = message[u];}
+  state[15] ^= 0x10000;
+
+  PERM_SMALL_P(state);
+  state[15] ^= 0x10000;
+  PERM_SMALL_Q(message);
+
+  for (int u = 0; u<16; u++) {state[u] ^= message[u];}
+
+  for (int u = 0; u<16; u++) {message[u] = state[u];}
+
+  PERM_SMALL_P(message);
+
+  state[15] ^= message[15];
+  barrier(CLK_GLOBAL_MEM_FENCE);
+
+  bool result = ( state[15] <= target);
+  if (result) {
+  output[atomic_inc(output+0xFF)] = SWAP4(gid);}
+
+}
+  
+ 
+
 
 #endif // LYRA2RE_CL

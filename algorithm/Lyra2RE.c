@@ -65,19 +65,26 @@ inline void lyra2rehash(void *state, const void *input)
     sph_blake256 (&ctx_blake, input, 80);
     sph_blake256_close (&ctx_blake, hashA);
 
+
+
+
     sph_keccak256_init(&ctx_keccak);
     sph_keccak256 (&ctx_keccak,hashA, 32);
     sph_keccak256_close(&ctx_keccak, hashB);
 
 	LYRA2(hashA, 32, hashB, 32, hashB, 32, 1, 8, 8);
 
+
 	sph_skein256_init(&ctx_skein);
     sph_skein256 (&ctx_skein, hashA, 32);
     sph_skein256_close(&ctx_skein, hashB);
 
+
     sph_groestl256_init(&ctx_groestl);
     sph_groestl256 (&ctx_groestl, hashB, 32);
     sph_groestl256_close(&ctx_groestl, hashA);
+
+//printf("cpu hash %08x %08x %08x %08x\n",hashA[0],hashA[1],hashA[2],hashA[3]);
 
 	memcpy(state, hashA, 32);
 }
