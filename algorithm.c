@@ -30,6 +30,7 @@
 #include "algorithm/x14.h"
 #include "algorithm/fresh.h"
 #include "algorithm/Lyra2RE.h"
+#include "algorithm/allium.h"
 
 #include "compat.h"
 
@@ -50,7 +51,8 @@ const char *algorithm_type_str[] = {
   "Fugue256",
   "NIST",
   "Fresh",
-  "Lyra2RE"
+  "Lyra2RE",
+  "Allium"
 };
 
 void sha256(const unsigned char *message, unsigned int len, unsigned char *digest)
@@ -668,7 +670,9 @@ static algorithm_settings_t algos[] = {
 
   { "fresh", ALGO_FRESH, 1, 1, 1, 0, 0, 0xFF, 0xFFFFULL, 0x0000ffffUL, 4, 4 * 16 * 4194304, 0, fresh_regenhash, queue_fresh_kernel, gen_hash, NULL},
   
-  { "Lyra2RE", ALGO_LYRA2RE, 1, 128, 128, 0, 0, 0xFF, 0xFFFFULL, 0x0000ffffUL, 4,2 * 8 * 4194304 , 0, lyra2re_regenhash, queue_lyra2RE_kernel, gen_hash, NULL},
+  { "Lyra2RE", ALGO_LYRA2RE, 1, 128, 128, 0, 0, 0xFF, 0xFFFFULL, 0x0000ffffUL, 4,2 * 8 * 4194304, 0, lyra2re_regenhash, queue_lyra2RE_kernel, gen_hash, NULL},
+  
+  { "allium", ALGO_ALLIUM,   1, 128, 128, 0, 0, 0xFF, 0xFFFFULL, 0x0000ffffUL, 4,2 * 8 * 4194304, 0, allium_regenhash, precalc_hash_blake256, queue_lyra2re_kernel, gen_hash, NULL },	
 
   // kernels starting from this will have difficulty calculated by using fuguecoin algorithm
 #define A_FUGUE(a, b) \
