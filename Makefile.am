@@ -66,6 +66,7 @@ sgminer_SOURCES += algorithm/bitblock.c algorithm/bitblock.h
 sgminer_SOURCES += algorithm/x14.c algorithm/x14.h
 sgminer_SOURCES += algorithm/fresh.c algorithm/fresh.h
 sgminer_SOURCES += algorithm/Lyra2RE.c algorithm/Lyra2RE.h algorithm/Lyra2.c algorithm/Lyra2.h algorithm/Sponge.c algorithm/Sponge.h
+sgminer_SOURCES += algorithm/allium.c
 
 bin_SCRIPTS	= $(top_srcdir)/kernel/*.cl
 
